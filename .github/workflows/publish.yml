@@ -65,3 +65,9 @@ jobs:
           port: 22
           script: |
             docker pull ${{ steps.meta.outputs.tags }}
+
+            docker container rm -f web || true
+
+            docker run -it -d -p 80:80 \
+            --name web \
+            ${{ steps.meta.outputs.tags }}
