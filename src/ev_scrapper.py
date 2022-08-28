@@ -1,10 +1,13 @@
-""" Scrpes https://ev-database.org/#sort:path~type~order=.rank~number~desc|range-slider-range:prev~next=0~1200|range-slider-acceleration:prev~next=2~23|range-slider-topspeed:prev~next=110~450|range-slider-battery:prev~next=10~200|range-slider-towweight:prev~next=0~2500|range-slider-fastcharge:prev~next=0~1500|paging:currentPage=0|paging:number=all
-for car specifications """
+""" 
+Scrapes https://ev-database.org/#sort:path~type~order=.rank~number~desc|range-slider-range:prev~next=0~1200|range-slider-acceleration:prev~next=2~23|range-slider-topspeed:prev~next=110~450|range-slider-battery:prev~next=10~200|range-slider-towweight:prev~next=0~2500|range-slider-fastcharge:prev~next=0~1500|paging:currentPage=0|paging:number=all
+for car specifications 
+"""
+from typing import List, Tuple
+
+import bs4
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup as bs
-import bs4
-from typing import List, Tuple
-import pandas as pd
 
 
 class WebParser:
@@ -19,7 +22,7 @@ class WebParser:
         return soup
 
     @property
-    def get_web_parser(self):
+    def get_web_parser(self) -> bs4.element.ResultSet:
         """ a public fxn for _web_parser"""
         return self._web_parser()
 
@@ -52,12 +55,12 @@ class WebParser:
         """
         car_img_url = self.get_car_img(single_car_info)
         car_name,car_battery = self.get_car_name_battery(single_car_info)
-        towWeight, mktSeg, nosSeat = self.get_towWeight_mktSeg_nosSeat(
+        towWeight, mktSeg, nosSeat, drive_type= self.get_towWeight_mktSeg_nosSeat_drive_type(
             single_car_info)
         acceleration, topSpeed, range, efficiency, fastcharge = self.get_car_specs(
             single_car_info)
         de_price, nl_price, uk_price = self.get_car_price(single_car_info)
-        single_car_info = [car_img_url, car_name, car_battery, towWeight, mktSeg, nosSeat, acceleration,
+        single_car_info = [car_img_url, car_name, car_battery, towWeight, mktSeg, nosSeat, drive_type, acceleration,
                            topSpeed, range, efficiency, fastcharge, de_price, nl_price, uk_price]
         single_car_info_df = self.list2dframe(single_car_info)
         return single_car_info_df
@@ -72,7 +75,7 @@ class WebParser:
         df : pd.DataFame
         """
         df = pd.DataFrame(columns=["Car_img_url", "Name", "Battery","Tow_Weight", 
-        "Market_Segment", "Number_of_Seat", "Acceleration","Speed", "Range", "Efficiency", 
+        "Market_Segment", "Number_of_Seat","DriveTrain" ,"Acceleration","Speed", "Range", "Efficiency", 
         "Fastcharge", "Germany_price", "Netherland_price", "Uk_price"])
         df.at[1,:] = list_obj
         return df
@@ -91,8 +94,8 @@ class WebParser:
         car_img = "https://ev-database.org"+str(car_img['href'])
         return car_img
 
-    @staticmethod
-    def get_car_name_battery(car_info) -> Tuple[str, str]:
+    @classmethod
+    def get_car_name_battery(cls,car_info) -> Tuple[str, str]:
         """
         Parameter:
         car_info: (bs4.element.ResultSet) 
@@ -106,19 +109,29 @@ class WebParser:
         car_name, car_battery : Tuple(str, str)
         """
         meta_data = car_info.find("div", {"class": "title-wrap"})
+        car_name = cls.get_car_name(meta_data)
+        car_battery = cls.get_car_battery(meta_data)
+        return car_name, car_battery
+
+    @staticmethod
+    def get_car_name(meta_data : bs4.element.Tag)-> str:
+        """ gets name of a car """
         meta_data_car_name = meta_data.find_all("span")
         meta_data_car_name = meta_data_car_name[:2]
-        car_name = meta_data_car_name[0].text + meta_data_car_name[1].text
-
+        car_name =  f"{meta_data_car_name[0].text} {meta_data_car_name[1].text}"
+        return car_name
+    @staticmethod
+    def get_car_battery(meta_data : bs4.element.Tag)-> str:
+        """ gets battery capacity of a car"""
         meta_battery = meta_data.find("div", {"class": "subtitle"})
         meta_battery = meta_battery.text.strip()
         meta_battery = meta_battery.replace("\n", '')
         meta_battery = meta_battery.replace("\t", '')
         car_battery = meta_battery.replace("*", '')
-        return car_name, car_battery
+        return car_battery
 
     @staticmethod
-    def get_towWeight_mktSeg_nosSeat(car_info: bs4.element.ResultSet) -> Tuple[str, str, str]:
+    def get_towWeight_mktSeg_nosSeat_drive_type(car_info: bs4.element.ResultSet) -> Tuple[str, str, str]:
         """
         Parameter:
         car_info: (bs4.element.ResultSet) 
@@ -139,7 +152,15 @@ class WebParser:
         mktSeg = mktSeg.text
         nosSeat = meta_data.find_all("span", {"title": "Number of seats"})
         nosSeat = nosSeat[1].text
-        return towWeight, mktSeg, nosSeat
+        drive_type = None
+        if meta_data.find("span",{"title":"All Wheel Drive"}):
+            drive_type = "All Wheel Drive"
+        elif meta_data.find("span",{"title":"Rear Wheel Drive"}):
+            drive_type = "Rear Wheel Drive"
+        elif meta_data.find("span",{"title":"Front Wheel Drive"}):
+            drive_type = "Front Wheel Drive"
+
+        return towWeight, mktSeg, nosSeat , drive_type
 
     @staticmethod
     def get_car_specs(car_info: bs4.element.ResultSet) -> Tuple[str, str, str, str, str]:
@@ -207,4 +228,5 @@ class WebParser:
 
 if __name__ == "__main__":
     obj = WebParser("https://ev-database.org/#sort:path~type~order=.rank~number~desc|range-slider-range:prev~next=0~1200|range-slider-acceleration:prev~next=2~23|range-slider-topspeed:prev~next=110~450|range-slider-battery:prev~next=10~200|range-slider-towweight:prev~next=0~2500|range-slider-fastcharge:prev~next=0~1500|paging:currentPage=0|paging:number=all")
-    cars_info = obj.get_cars_info()
+    evCarsdata = obj.get_cars_info()
+    print(evCarsdata.head())
